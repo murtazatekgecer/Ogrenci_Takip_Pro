@@ -28,6 +28,13 @@ jobs:
         run: |
           pip install flet
 
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      
+      - name: Install dependencies
+        run: pip install flet
       - name: Build APK
         run: |
           flet build apk --verbose
