@@ -11,7 +11,7 @@ from .settings_view import SettingsView
 class MainView(ft.Container):
     """Ana uygulama görünümü."""
     
-    def __init__(self, page: ft.Page, db_manager):
+    def __init__(self, page, db_manager):
         super().__init__()
         self.page = page
         self.db = db_manager

@@ -10,7 +10,7 @@ from views.reports_view import ReportsView
 from views.settings_view import SettingsView
 
 
-def main(page: ft.Page):
+def main(page):
     """Ana uygulama fonksiyonu."""
     
     # Sayfa ayarları
@@ -178,7 +178,7 @@ def main(page: ft.Page):
     page.add(main_layout)
     
     # Klavye kısayolları
-    def on_keyboard(e: ft.KeyboardEvent):
+    def on_keyboard(e):
         if e.ctrl and e.key == "Z":
             on_undo(None)
     

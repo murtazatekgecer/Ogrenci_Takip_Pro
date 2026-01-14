@@ -217,7 +217,7 @@ class SettingsView(ft.Container):
             allowed_extensions=["pdf"],
         )
     
-    def _on_save_file(self, e: ft.FilePickerResultEvent):
+    def _on_save_file(self, e):
         """Dosya kaydetme sonucu."""
         if not e.path:
             return
@@ -269,7 +269,7 @@ class SettingsView(ft.Container):
             dialog_title="Yedek Klasörü Seç",
         )
     
-    def _on_folder_select(self, e: ft.FilePickerResultEvent):
+    def _on_folder_select(self, e):
         """Klasör seçme sonucu."""
         if not e.path:
             return
@@ -292,7 +292,7 @@ class SettingsView(ft.Container):
             allowed_extensions=["json"],
         )
     
-    def _on_open_file(self, e: ft.FilePickerResultEvent):
+    def _on_open_file(self, e):
         """Dosya açma sonucu."""
         if not e.files:
             return
