@@ -6,6 +6,7 @@ from .student_view import StudentView
 from .grades_view import GradesView
 from .reports_view import ReportsView
 from .settings_view import SettingsView
+from .random_view import RandomView
 
 
 class MainView(ft.Container):
@@ -23,6 +24,7 @@ class MainView(ft.Container):
         self.grades_view = None
         self.reports_view = None
         self.settings_view = None
+        self.random_view = None
         self._build_content()
     
     def _build_content(self):
@@ -54,9 +56,10 @@ class MainView(ft.Container):
             ),
             ft.Divider(height=1),
             self._create_nav_button(0, ft.icons.PEOPLE, "Öğrenciler"),
-            self._create_nav_button(1, ft.icons.ASSIGNMENT, "Notlar"),
-            self._create_nav_button(2, ft.icons.ANALYTICS, "Raporlar"),
-            self._create_nav_button(3, ft.icons.SETTINGS, "Ayarlar"),
+            self._create_nav_button(1, ft.icons.SHUFFLE, "Rastgele Seç"),
+            self._create_nav_button(2, ft.icons.ASSIGNMENT, "Notlar"),
+            self._create_nav_button(3, ft.icons.ANALYTICS, "Raporlar"),
+            self._create_nav_button(4, ft.icons.SETTINGS, "Ayarlar"),
             ft.Container(expand=True),
             self.undo_button,
             self.theme_button,
@@ -109,11 +112,13 @@ class MainView(ft.Container):
             on_theme_change=self._apply_theme,
             on_data_change=self._refresh_views
         )
+        self.random_view = RandomView(self.db)
     
     def _on_nav_click(self, index):
         """Navigasyon tıklandığında çağrılır."""
         views = [
             self.student_view,
+            self.random_view,
             self.grades_view,
             self.reports_view,
             self.settings_view,

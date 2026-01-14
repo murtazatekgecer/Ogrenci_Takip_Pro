@@ -289,7 +289,7 @@ class GradeTable(ft.Container):
             return "İyi"
         elif grade >= 55:
             return "Orta"
-        elif grade >= 45:
+        elif grade >= 50:
             return "Geçer"
         else:
             return "Başarısız"
@@ -304,7 +304,7 @@ class GradeTable(ft.Container):
             return ft.colors.LIGHT_GREEN_700
         elif grade >= 55:
             return ft.colors.ORANGE
-        elif grade >= 45:
+        elif grade >= 50:
             return ft.colors.DEEP_ORANGE
         else:
             return ft.colors.RED

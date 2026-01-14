@@ -49,7 +49,7 @@ class WheelPicker(ft.Container):
         # Çevir butonu
         self.spin_button = ft.ElevatedButton(
             content=ft.Row([
-                ft.Icon(ft.icons.CASINO, color=ft.colors.WHITE),
+                ft.Icon(ft.icons.SHUFFLE, color=ft.colors.WHITE),
                 ft.Text("ÇEVİR!", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE),
             ], alignment=ft.MainAxisAlignment.CENTER),
             on_click=self._start_spin,
@@ -88,7 +88,7 @@ class WheelPicker(ft.Container):
         )
         
         self.content = ft.Column([
-            ft.Text("🎲 Rastgele Öğrenci Seçici", 
+            ft.Text("✨ Rastgele Öğrenci Seçici", 
                    size=22, weight=ft.FontWeight.BOLD, 
                    text_align=ft.TextAlign.CENTER),
             
@@ -97,7 +97,7 @@ class WheelPicker(ft.Container):
             ft.Stack([
                 self.wheel_container,
                 arrow,
-            ], alignment=ft.alignment.center),
+            ]),
             
             ft.Container(height=20),
             

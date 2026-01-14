@@ -239,16 +239,27 @@ class SettingsView(ft.Container):
             
             def open_file(e):
                 import os
+                import sys
                 try:
-                    os.startfile(path)
+                    # Windows-only: os.startfile
+                    if sys.platform == 'win32':
+                        os.startfile(path)
+                    else:
+                        # Android/Linux/Mac - dosya açma desteklenmiyor
+                        pass
                 except Exception as err:
                     print(f"Dosya açma hatası: {err}")
 
-            self._show_success(
-                f"Dosya kaydedildi: {path}",
-                action_text="DOSYAYI AÇ",
-                on_action=open_file
-            )
+            # Sadece Windows'ta "Dosyayı Aç" butonu göster
+            import sys
+            if sys.platform == 'win32':
+                self._show_success(
+                    f"Dosya kaydedildi: {path}",
+                    action_text="DOSYAYI AÇ",
+                    on_action=open_file
+                )
+            else:
+                self._show_success(f"Dosya kaydedildi: {path}")
         except Exception as err:
             self._show_error(f"Hata: {str(err)}")
     

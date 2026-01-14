@@ -8,6 +8,7 @@ from views.student_view import StudentView
 from views.grades_view import GradesView
 from views.reports_view import ReportsView
 from views.settings_view import SettingsView
+from views.random_view import RandomView
 
 
 def main(page):
@@ -15,14 +16,16 @@ def main(page):
     
     # Sayfa ayarları
     page.title = "Öğrenci Takip Pro"
-    page.window_width = 1200
-    page.window_height = 800
-    page.window_min_width = 900
-    page.window_min_height = 600
     page.padding = 0
     page.spacing = 0
-    # Pencere ikonu (assets klsöründen otomatik alır)
-    page.window_icon = "icon.png"
+    
+    # Masaüstü-only ayarları (mobilde bu özellikler desteklenmiyor)
+    if page.platform not in ["android", "ios"]:
+        page.window_width = 1200
+        page.window_height = 800
+        page.window_min_width = 900
+        page.window_min_height = 600
+        page.window_icon = "icon.png"
     
     # Tema ayarları
     page.theme = ft.Theme(
@@ -49,9 +52,13 @@ def main(page):
         on_data_change=lambda: refresh_views()
     )
     
+    # Rastgele Seç görünümü
+    random_view = RandomView(db)
+    
     # Konteynerler - visibility ile kontrol
     view_containers = [
         ft.Container(content=student_view, visible=True, expand=True, padding=20),
+        ft.Container(content=random_view, visible=False, expand=True, padding=20),
         ft.Container(content=grades_view, visible=False, expand=True, padding=20),
         ft.Container(content=reports_view, visible=False, expand=True, padding=20),
         ft.Container(content=settings_view, visible=False, expand=True, padding=20),
@@ -108,8 +115,8 @@ def main(page):
     
     # Navigasyon icon butonları (ayrı liste)
     nav_icon_buttons = []
-    nav_icons = [ft.icons.PEOPLE, ft.icons.ASSIGNMENT, ft.icons.ANALYTICS, ft.icons.SETTINGS]
-    nav_labels = ["Öğrenciler", "Notlar", "Raporlar", "Ayarlar"]
+    nav_icons = [ft.icons.PEOPLE, ft.icons.SHUFFLE, ft.icons.ASSIGNMENT, ft.icons.ANALYTICS, ft.icons.SETTINGS]
+    nav_labels = ["Öğrenciler", "Rastgele Seç", "Notlar", "Raporlar", "Ayarlar"]
     
     for i, (icon, label) in enumerate(zip(nav_icons, nav_labels)):
         icon_btn = ft.IconButton(

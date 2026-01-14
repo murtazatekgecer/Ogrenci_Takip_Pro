@@ -41,25 +41,25 @@ def calculate_average(values):
 def get_grade_color(grade):
     """
     Not değerine göre renk döndürür.
-    Başarı durumuna göre yeşil-sarı-kırmızı skalası.
+    0-49: Başarısız, 50-54: Geçer, 55-69: Orta, 70-84: İyi, 85-100: Pekiyi
     """
     if grade is None:
         return '#9E9E9E'  # Gri
     
     if grade >= 85:
-        return '#4CAF50'  # Yeşil
+        return '#4CAF50'  # Yeşil - Pekiyi
     elif grade >= 70:
-        return '#8BC34A'  # Açık yeşil
+        return '#8BC34A'  # Açık yeşil - İyi
     elif grade >= 55:
-        return '#FFC107'  # Sarı
-    elif grade >= 45:
-        return '#FF9800'  # Turuncu
+        return '#FFC107'  # Sarı - Orta
+    elif grade >= 50:
+        return '#FF9800'  # Turuncu - Geçer
     else:
-        return '#F44336'  # Kırmızı
+        return '#F44336'  # Kırmızı - Başarısız
 
 
 def get_grade_text(grade):
-    """Not değerine göre metin döndürür."""
+    """Not değerine göre metin döndürür. 0-49: Başarısız, 50-54: Geçer, 55-69: Orta, 70-84: İyi, 85-100: Pekiyi"""
     if grade is None:
         return 'Değerlendirilmedi'
     
@@ -69,7 +69,7 @@ def get_grade_text(grade):
         return 'İyi'
     elif grade >= 55:
         return 'Orta'
-    elif grade >= 45:
+    elif grade >= 50:
         return 'Geçer'
     else:
         return 'Başarısız'

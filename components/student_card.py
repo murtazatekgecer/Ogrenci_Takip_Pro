@@ -35,12 +35,7 @@ class StudentCard(ft.Container):
         rozet_row = ft.Row(
             controls=[
                 ft.Tooltip(
-                    content=ft.Container(
-                        content=ft.Text(get_badge_info(r)['icon'], size=24),
-                        bgcolor=get_badge_info(r)['color'],
-                        border_radius=20,
-                        padding=8,
-                    ),
+                    content=ft.Text(get_badge_info(r)['icon'], size=28),
                     message=get_badge_info(r)['name']
                 ) for r in rozetler
             ] if rozetler else [ft.Text("Rozet yok", italic=True, color=ft.colors.GREY_500)],
@@ -197,6 +192,8 @@ class StudentCard(ft.Container):
             self.page.update()
             if self.on_update:
                 self.on_update()
+            # Kartı yeniden build et
+            self._build_content()
             self.update()
         
         badge_chips = []
@@ -220,7 +217,7 @@ class StudentCard(ft.Container):
             content=ft.Container(
                 content=ft.Column([
                     ft.Text("Eklemek veya çıkarmak için rozete tıklayın:"),
-                    ft.Wrap(controls=badge_chips, spacing=10, run_spacing=10),
+                    ft.Row(controls=badge_chips, spacing=10, wrap=True, run_spacing=10),
                 ], tight=True),
                 width=400,
             ),

@@ -122,13 +122,6 @@ class StudentView(ft.Container):
                     bgcolor=ft.colors.PRIMARY,
                     color=ft.colors.WHITE,
                 ),
-                ft.ElevatedButton(
-                    "Rastgele Seç",
-                    icon=ft.icons.CASINO,
-                    on_click=self._show_wheel_picker,
-                    bgcolor=ft.colors.ORANGE,
-                    color=ft.colors.WHITE,
-                ),
             ]),
             
             ft.Divider(height=10),
@@ -339,7 +332,9 @@ class StudentView(ft.Container):
         
         self.detail_container.visible = False
         
-        ogrenciler = self.db.get_all_ogrenciler(self.selected_sinif)
+        # "all" seçiliyse tüm öğrencileri getir
+        sinif_id = None if self.selected_sinif == "all" else self.selected_sinif
+        ogrenciler = self.db.get_all_ogrenciler(sinif_id)
         wheel = WheelPicker(ogrenciler, on_select=self._on_random_select)
         
         self.wheel_container.content = ft.Container(
