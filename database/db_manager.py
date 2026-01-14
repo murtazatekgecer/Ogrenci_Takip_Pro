@@ -1,331 +1,666 @@
 """
-Veritabanı yönetim modülü - SQLite ile öğrenci, kategori ve görev yönetimi
+Veritabanı yönetim sınıfı.
+Tüm CRUD işlemleri ve iş mantığı burada tanımlanır.
 """
 import sqlite3
-import os
-from typing import List, Optional, Tuple, Dict
-from pathlib import Path
+import json
+from datetime import datetime
+from .models import get_connection
 
 
 class DatabaseManager:
-    """SQLite veritabanı yönetici sınıfı"""
+    """Veritabanı işlemlerini yöneten sınıf."""
     
-    def __init__(self, db_path: str = None):
-        if db_path is None:
-            # Varsayılan veritabanı yolu
-            app_data = os.getenv('APPDATA', os.path.expanduser('~'))
-            db_dir = os.path.join(app_data, 'OgrenciTakipPro')
-            os.makedirs(db_dir, exist_ok=True)
-            db_path = os.path.join(db_dir, 'ogrenci_takip.db')
-        
-        self.db_path = db_path
-        self.conn = None
-        self._connect()
-        self._create_tables()
-        self._insert_default_categories()
+    def __init__(self):
+        self.undo_stack = []
+        self.max_undo = 50
     
-    def _connect(self):
-        """Veritabanına bağlan"""
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+    # ==================== SINIF İŞLEMLERİ ====================
     
-    def _create_tables(self):
-        """Tabloları oluştur"""
-        cursor = self.conn.cursor()
-        
-        # Öğrenciler tablosu
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS students (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ad TEXT NOT NULL,
-                soyad TEXT NOT NULL,
-                sinif TEXT NOT NULL,
-                numara TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Kategoriler tablosu
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                isim TEXT NOT NULL UNIQUE,
-                varsayilan INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Görevler/Puanlar tablosu
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ogrenci_id INTEGER NOT NULL,
-                kategori_id INTEGER NOT NULL,
-                isim TEXT NOT NULL,
-                puan INTEGER NOT NULL CHECK(puan >= 0 AND puan <= 100),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (ogrenci_id) REFERENCES students(id) ON DELETE CASCADE,
-                FOREIGN KEY (kategori_id) REFERENCES categories(id) ON DELETE CASCADE
-            )
-        ''')
-        
-        self.conn.commit()
+    def get_all_siniflar(self):
+        """Tüm sınıfları döndürür."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM sinif ORDER BY ad')
+        result = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return result
     
-    def _insert_default_categories(self):
-        """Varsayılan kategorileri ekle"""
-        default_categories = ['Davranış', 'Ödev', 'Quiz']
-        cursor = self.conn.cursor()
-        
-        for kategori in default_categories:
-            try:
-                cursor.execute(
-                    'INSERT OR IGNORE INTO categories (isim, varsayilan) VALUES (?, 1)',
-                    (kategori,)
-                )
-            except sqlite3.IntegrityError:
-                pass
-        
-        self.conn.commit()
-    
-    # ========== ÖĞRENCİ İŞLEMLERİ ==========
-    
-    def add_student(self, ad: str, soyad: str, sinif: str, numara: str) -> int:
-        """Yeni öğrenci ekle"""
-        cursor = self.conn.cursor()
+    def add_sinif(self, ad, donem=''):
+        """Yeni sınıf ekler."""
+        conn = get_connection()
+        cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO students (ad, soyad, sinif, numara) VALUES (?, ?, ?, ?)',
-            (ad, soyad, sinif, numara)
+            'INSERT INTO sinif (ad, donem) VALUES (?, ?)',
+            (ad, donem)
         )
-        self.conn.commit()
-        return cursor.lastrowid
+        sinif_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('INSERT', 'sinif', sinif_id, None, {'ad': ad, 'donem': donem})
+        return sinif_id
     
-    def update_student(self, student_id: int, ad: str, soyad: str, sinif: str, numara: str):
-        """Öğrenci bilgilerini güncelle"""
-        cursor = self.conn.cursor()
+    def update_sinif(self, sinif_id, ad, donem=''):
+        """Sınıf bilgilerini günceller."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Eski veriyi al
+        cursor.execute('SELECT * FROM sinif WHERE id = ?', (sinif_id,))
+        old_data = dict(cursor.fetchone())
+        
         cursor.execute(
-            'UPDATE students SET ad=?, soyad=?, sinif=?, numara=? WHERE id=?',
-            (ad, soyad, sinif, numara, student_id)
+            'UPDATE sinif SET ad = ?, donem = ? WHERE id = ?',
+            (ad, donem, sinif_id)
         )
-        self.conn.commit()
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('UPDATE', 'sinif', sinif_id, old_data, {'ad': ad, 'donem': donem})
     
-    def delete_student(self, student_id: int):
-        """Öğrenciyi sil"""
-        cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM students WHERE id=?', (student_id,))
-        self.conn.commit()
+    def delete_sinif(self, sinif_id):
+        """Sınıfı siler."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Eski veriyi al
+        cursor.execute('SELECT * FROM sinif WHERE id = ?', (sinif_id,))
+        old_data = dict(cursor.fetchone())
+        
+        cursor.execute('DELETE FROM sinif WHERE id = ?', (sinif_id,))
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('DELETE', 'sinif', sinif_id, old_data, None)
     
-    def get_all_students(self) -> List[dict]:
-        """Tüm öğrencileri getir"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM students ORDER BY sinif, numara')
-        return [dict(row) for row in cursor.fetchall()]
-    
-    def get_student(self, student_id: int) -> Optional[dict]:
-        """Tek öğrenci getir"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM students WHERE id=?', (student_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    
-    def get_students_by_class(self, sinif: str) -> List[dict]:
-        """Sınıfa göre öğrencileri getir"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM students WHERE sinif=? ORDER BY numara', (sinif,))
-        return [dict(row) for row in cursor.fetchall()]
-    
-    def get_all_classes(self) -> List[str]:
-        """Tüm sınıfları getir"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT DISTINCT sinif FROM students ORDER BY sinif')
-        return [row['sinif'] for row in cursor.fetchall()]
-    
-    # ========== KATEGORİ İŞLEMLERİ ==========
-    
-    def add_category(self, isim: str) -> int:
-        """Yeni kategori ekle"""
-        cursor = self.conn.cursor()
+    def copy_sinif_to_new_term(self, sinif_id, new_sinif_ad, new_donem):
+        """
+        Sınıfı yeni dönem/seneye kopyalar.
+        Öğrenciler kopyalanır, notlar sıfırlanır.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Yeni sınıf oluştur
         cursor.execute(
-            'INSERT INTO categories (isim, varsayilan) VALUES (?, 0)',
-            (isim,)
+            'INSERT INTO sinif (ad, donem) VALUES (?, ?)',
+            (new_sinif_ad, new_donem)
         )
-        self.conn.commit()
-        return cursor.lastrowid
-    
-    def update_category(self, category_id: int, isim: str):
-        """Kategori adını güncelle"""
-        cursor = self.conn.cursor()
-        cursor.execute('UPDATE categories SET isim=? WHERE id=?', (isim, category_id))
-        self.conn.commit()
-    
-    def delete_category(self, category_id: int):
-        """Kategoriyi sil (varsayılan kategoriler silinebilir)"""
-        cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM categories WHERE id=?', (category_id,))
-        self.conn.commit()
-    
-    def get_all_categories(self) -> List[dict]:
-        """Tüm kategorileri getir"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM categories ORDER BY varsayilan DESC, isim')
-        return [dict(row) for row in cursor.fetchall()]
-    
-    def get_category(self, category_id: int) -> Optional[dict]:
-        """Tek kategori getir"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM categories WHERE id=?', (category_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    
-    # ========== GÖREV/PUAN İŞLEMLERİ ==========
-    
-    def add_task(self, ogrenci_id: int, kategori_id: int, isim: str, puan: int) -> int:
-        """Yeni görev/puan ekle"""
-        cursor = self.conn.cursor()
-        cursor.execute(
-            'INSERT INTO tasks (ogrenci_id, kategori_id, isim, puan) VALUES (?, ?, ?, ?)',
-            (ogrenci_id, kategori_id, isim, puan)
-        )
-        self.conn.commit()
-        return cursor.lastrowid
-    
-    def update_task(self, task_id: int, isim: str, puan: int):
-        """Görev bilgilerini güncelle"""
-        cursor = self.conn.cursor()
-        cursor.execute('UPDATE tasks SET isim=?, puan=? WHERE id=?', (isim, puan, task_id))
-        self.conn.commit()
-    
-    def delete_task(self, task_id: int):
-        """Görevi sil"""
-        cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM tasks WHERE id=?', (task_id,))
-        self.conn.commit()
-    
-    def get_student_tasks(self, ogrenci_id: int) -> List[dict]:
-        """Öğrencinin tüm görevlerini getir"""
-        cursor = self.conn.cursor()
+        new_sinif_id = cursor.lastrowid
+        
+        # Öğrencileri kopyala
         cursor.execute('''
-            SELECT t.*, c.isim as kategori_isim 
-            FROM tasks t 
-            JOIN categories c ON t.kategori_id = c.id 
-            WHERE t.ogrenci_id = ?
-            ORDER BY c.isim, t.created_at
-        ''', (ogrenci_id,))
-        return [dict(row) for row in cursor.fetchall()]
+            INSERT INTO ogrenci (ad, soyad, okul_no, sinif_id)
+            SELECT ad, soyad, okul_no || '_' || ?, ?
+            FROM ogrenci WHERE sinif_id = ?
+        ''', (new_sinif_id, new_sinif_id, sinif_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return new_sinif_id
     
-    def get_student_tasks_by_category(self, ogrenci_id: int, kategori_id: int) -> List[dict]:
-        """Öğrencinin belirli kategorideki görevlerini getir"""
-        cursor = self.conn.cursor()
+    # ==================== ÖĞRENCİ İŞLEMLERİ ====================
+    
+    def get_all_ogrenciler(self, sinif_id=None):
+        """Tüm öğrencileri veya belirli bir sınıfın öğrencilerini döndürür."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        if sinif_id:
+            cursor.execute('''
+                SELECT o.*, s.ad as sinif_adi 
+                FROM ogrenci o 
+                LEFT JOIN sinif s ON o.sinif_id = s.id 
+                WHERE o.sinif_id = ?
+                ORDER BY o.soyad, o.ad
+            ''', (sinif_id,))
+        else:
+            cursor.execute('''
+                SELECT o.*, s.ad as sinif_adi 
+                FROM ogrenci o 
+                LEFT JOIN sinif s ON o.sinif_id = s.id 
+                ORDER BY o.soyad, o.ad
+            ''')
+        
+        result = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return result
+    
+    def get_ogrenci_by_id(self, ogrenci_id):
+        """Belirli bir öğrenciyi döndürür."""
+        conn = get_connection()
+        cursor = conn.cursor()
         cursor.execute('''
-            SELECT * FROM tasks 
-            WHERE ogrenci_id = ? AND kategori_id = ?
-            ORDER BY created_at
-        ''', (ogrenci_id, kategori_id))
-        return [dict(row) for row in cursor.fetchall()]
-    
-    # ========== DEĞERLENDİRME İŞLEMLERİ ==========
-    
-    def get_student_category_average(self, ogrenci_id: int, kategori_id: int) -> float:
-        """Öğrencinin bir kategorideki not ortalamasını hesapla"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            SELECT AVG(puan) as ortalama 
-            FROM tasks 
-            WHERE ogrenci_id = ? AND kategori_id = ?
-        ''', (ogrenci_id, kategori_id))
-        row = cursor.fetchone()
-        return round(row['ortalama'], 2) if row['ortalama'] else 0.0
-    
-    def get_student_overall_average(self, ogrenci_id: int) -> float:
-        """Öğrencinin genel not ortalamasını hesapla"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            SELECT AVG(puan) as ortalama 
-            FROM tasks 
-            WHERE ogrenci_id = ?
+            SELECT o.*, s.ad as sinif_adi 
+            FROM ogrenci o 
+            LEFT JOIN sinif s ON o.sinif_id = s.id 
+            WHERE o.id = ?
         ''', (ogrenci_id,))
         row = cursor.fetchone()
-        return round(row['ortalama'], 2) if row['ortalama'] else 0.0
+        result = dict(row) if row else None
+        conn.close()
+        return result
     
-    def get_evaluation_data(self) -> List[dict]:
-        """Tüm öğrenciler için değerlendirme verilerini getir"""
-        students = self.get_all_students()
-        categories = self.get_all_categories()
+    def add_ogrenci(self, ad, soyad, okul_no, sinif_id):
+        """Yeni öğrenci ekler."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO ogrenci (ad, soyad, okul_no, sinif_id) VALUES (?, ?, ?, ?)',
+            (ad, soyad, okul_no, sinif_id)
+        )
+        ogrenci_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
         
-        result = []
-        for student in students:
-            eval_data = {
-                'id': student['id'],
-                'ad': student['ad'],
-                'soyad': student['soyad'],
-                'sinif': student['sinif'],
-                'numara': student['numara'],
-                'kategoriler': {},
-                'genel_ortalama': 0.0
+        self._add_to_undo('INSERT', 'ogrenci', ogrenci_id, None, 
+                          {'ad': ad, 'soyad': soyad, 'okul_no': okul_no, 'sinif_id': sinif_id})
+        return ogrenci_id
+    
+    def update_ogrenci(self, ogrenci_id, ad, soyad, okul_no, sinif_id):
+        """Öğrenci bilgilerini günceller."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Eski veriyi al
+        cursor.execute('SELECT * FROM ogrenci WHERE id = ?', (ogrenci_id,))
+        old_data = dict(cursor.fetchone())
+        
+        cursor.execute(
+            'UPDATE ogrenci SET ad = ?, soyad = ?, okul_no = ?, sinif_id = ? WHERE id = ?',
+            (ad, soyad, okul_no, sinif_id, ogrenci_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('UPDATE', 'ogrenci', ogrenci_id, old_data,
+                          {'ad': ad, 'soyad': soyad, 'okul_no': okul_no, 'sinif_id': sinif_id})
+    
+    def delete_ogrenci(self, ogrenci_id):
+        """Öğrenciyi siler."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Eski veriyi al
+        cursor.execute('SELECT * FROM ogrenci WHERE id = ?', (ogrenci_id,))
+        old_data = dict(cursor.fetchone())
+        
+        cursor.execute('DELETE FROM ogrenci WHERE id = ?', (ogrenci_id,))
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('DELETE', 'ogrenci', ogrenci_id, old_data, None)
+    
+    def update_ogrenci_rozetler(self, ogrenci_id, rozetler):
+        """Öğrenci rozetlerini günceller."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE ogrenci SET rozetler = ? WHERE id = ?',
+            (json.dumps(rozetler), ogrenci_id)
+        )
+        conn.commit()
+        conn.close()
+    
+    def filter_ogrenciler_by_average(self, sinif_id, operator, value):
+        """
+        Öğrencileri ortalamaya göre filtreler.
+        operator: '<', '>', '<=', '>=', '='
+        """
+        ogrenciler = self.get_all_ogrenciler(sinif_id)
+        filtered = []
+        
+        for ogrenci in ogrenciler:
+            avg = self.get_ogrenci_genel_ortalama(ogrenci['id'])
+            if avg is None:
+                continue
+            
+            if operator == '<' and avg < value:
+                filtered.append(ogrenci)
+            elif operator == '>' and avg > value:
+                filtered.append(ogrenci)
+            elif operator == '<=' and avg <= value:
+                filtered.append(ogrenci)
+            elif operator == '>=' and avg >= value:
+                filtered.append(ogrenci)
+            elif operator == '=' and avg == value:
+                filtered.append(ogrenci)
+        
+        return filtered
+    
+    # ==================== KATEGORİ İŞLEMLERİ ====================
+    
+    def get_all_kategoriler(self):
+        """Tüm kategorileri döndürür."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM kategori ORDER BY sira')
+        result = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return result
+    
+    def add_kategori(self, ad, sira=0):
+        """Yeni kategori ekler."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO kategori (ad, sira, varsayilan) VALUES (?, ?, 0)',
+            (ad, sira)
+        )
+        kategori_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('INSERT', 'kategori', kategori_id, None, {'ad': ad, 'sira': sira})
+        return kategori_id
+    
+    def update_kategori(self, kategori_id, ad, sira=None):
+        """Kategori bilgilerini günceller."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Eski veriyi al
+        cursor.execute('SELECT * FROM kategori WHERE id = ?', (kategori_id,))
+        old_data = dict(cursor.fetchone())
+        
+        if sira is not None:
+            cursor.execute(
+                'UPDATE kategori SET ad = ?, sira = ? WHERE id = ?',
+                (ad, sira, kategori_id)
+            )
+        else:
+            cursor.execute(
+                'UPDATE kategori SET ad = ? WHERE id = ?',
+                (ad, kategori_id)
+            )
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('UPDATE', 'kategori', kategori_id, old_data, {'ad': ad, 'sira': sira})
+    
+    def delete_kategori(self, kategori_id):
+        """Kategoriyi siler."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Eski veriyi al
+        cursor.execute('SELECT * FROM kategori WHERE id = ?', (kategori_id,))
+        old_data = dict(cursor.fetchone())
+        
+        cursor.execute('DELETE FROM kategori WHERE id = ?', (kategori_id,))
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('DELETE', 'kategori', kategori_id, old_data, None)
+    
+    # ==================== NOT BAŞLIĞI İŞLEMLERİ ====================
+    
+    def get_not_basliklari(self, kategori_id=None, sinif_id=None):
+        """Not başlıklarını döndürür."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        query = '''
+            SELECT nb.*, k.ad as kategori_adi, s.ad as sinif_adi
+            FROM not_basligi nb
+            LEFT JOIN kategori k ON nb.kategori_id = k.id
+            LEFT JOIN sinif s ON nb.sinif_id = s.id
+            WHERE 1=1
+        '''
+        params = []
+        
+        if kategori_id:
+            query += ' AND nb.kategori_id = ?'
+            params.append(kategori_id)
+        if sinif_id:
+            query += ' AND nb.sinif_id = ?'
+            params.append(sinif_id)
+        
+        query += ' ORDER BY nb.tarih DESC'
+        
+        cursor.execute(query, params)
+        result = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return result
+    
+    def add_not_basligi(self, baslik, kategori_id, sinif_id):
+        """Yeni not başlığı ekler."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO not_basligi (baslik, kategori_id, sinif_id) VALUES (?, ?, ?)',
+            (baslik, kategori_id, sinif_id)
+        )
+        baslik_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('INSERT', 'not_basligi', baslik_id, None,
+                          {'baslik': baslik, 'kategori_id': kategori_id, 'sinif_id': sinif_id})
+        return baslik_id
+    
+    def update_not_basligi(self, baslik_id, baslik):
+        """Not başlığını günceller."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM not_basligi WHERE id = ?', (baslik_id,))
+        old_data = dict(cursor.fetchone())
+        
+        cursor.execute(
+            'UPDATE not_basligi SET baslik = ? WHERE id = ?',
+            (baslik, baslik_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('UPDATE', 'not_basligi', baslik_id, old_data, {'baslik': baslik})
+    
+    def delete_not_basligi(self, baslik_id):
+        """Not başlığını ve ilgili notları siler."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM not_basligi WHERE id = ?', (baslik_id,))
+        old_data = dict(cursor.fetchone())
+        
+        cursor.execute('DELETE FROM not_basligi WHERE id = ?', (baslik_id,))
+        conn.commit()
+        conn.close()
+        
+        self._add_to_undo('DELETE', 'not_basligi', baslik_id, old_data, None)
+    
+    # ==================== NOT İŞLEMLERİ ====================
+    
+    def get_notlar(self, ogrenci_id=None, baslik_id=None):
+        """Notları döndürür."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        query = '''
+            SELECT n.*, nb.baslik as not_basligi, k.ad as kategori_adi,
+                   o.ad as ogrenci_adi, o.soyad as ogrenci_soyadi
+            FROM not_ n
+            LEFT JOIN not_basligi nb ON n.baslik_id = nb.id
+            LEFT JOIN kategori k ON nb.kategori_id = k.id
+            LEFT JOIN ogrenci o ON n.ogrenci_id = o.id
+            WHERE 1=1
+        '''
+        params = []
+        
+        if ogrenci_id:
+            query += ' AND n.ogrenci_id = ?'
+            params.append(ogrenci_id)
+        if baslik_id:
+            query += ' AND n.baslik_id = ?'
+            params.append(baslik_id)
+        
+        query += ' ORDER BY nb.tarih DESC'
+        
+        cursor.execute(query, params)
+        result = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return result
+    
+    def add_or_update_not(self, ogrenci_id, baslik_id, puan):
+        """Not ekler veya günceller."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Mevcut not var mı kontrol et
+        cursor.execute(
+            'SELECT * FROM not_ WHERE ogrenci_id = ? AND baslik_id = ?',
+            (ogrenci_id, baslik_id)
+        )
+        existing = cursor.fetchone()
+        
+        if existing:
+            old_data = dict(existing)
+            cursor.execute(
+                '''UPDATE not_ SET puan = ?, guncelleme_tarihi = CURRENT_TIMESTAMP 
+                   WHERE ogrenci_id = ? AND baslik_id = ?''',
+                (puan, ogrenci_id, baslik_id)
+            )
+            self._add_to_undo('UPDATE', 'not_', existing['id'], old_data, {'puan': puan})
+        else:
+            cursor.execute(
+                'INSERT INTO not_ (ogrenci_id, baslik_id, puan) VALUES (?, ?, ?)',
+                (ogrenci_id, baslik_id, puan)
+            )
+            not_id = cursor.lastrowid
+            self._add_to_undo('INSERT', 'not_', not_id, None,
+                              {'ogrenci_id': ogrenci_id, 'baslik_id': baslik_id, 'puan': puan})
+        
+        conn.commit()
+        conn.close()
+    
+    def add_bulk_notlar(self, baslik_id, notlar_dict):
+        """
+        Toplu not girişi yapar.
+        notlar_dict: {ogrenci_id: puan, ...}
+        """
+        for ogrenci_id, puan in notlar_dict.items():
+            self.add_or_update_not(ogrenci_id, baslik_id, puan)
+    
+    def delete_not(self, ogrenci_id, baslik_id):
+        """Notu siler."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'SELECT * FROM not_ WHERE ogrenci_id = ? AND baslik_id = ?',
+            (ogrenci_id, baslik_id)
+        )
+        old_data = cursor.fetchone()
+        if old_data:
+            old_data = dict(old_data)
+            cursor.execute(
+                'DELETE FROM not_ WHERE ogrenci_id = ? AND baslik_id = ?',
+                (ogrenci_id, baslik_id)
+            )
+            conn.commit()
+            self._add_to_undo('DELETE', 'not_', old_data['id'], old_data, None)
+        
+        conn.close()
+    
+    # ==================== ORTALAMA HESAPLAMALARI ====================
+    
+    def get_ogrenci_kategori_ortalama(self, ogrenci_id, kategori_id):
+        """Öğrencinin bir kategorideki ortalamasını hesaplar."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT AVG(n.puan) as ortalama
+            FROM not_ n
+            JOIN not_basligi nb ON n.baslik_id = nb.id
+            WHERE n.ogrenci_id = ? AND nb.kategori_id = ?
+        ''', (ogrenci_id, kategori_id))
+        
+        row = cursor.fetchone()
+        conn.close()
+        return row['ortalama'] if row and row['ortalama'] else None
+    
+    def get_ogrenci_genel_ortalama(self, ogrenci_id):
+        """Öğrencinin genel ortalamasını hesaplar (kategori ortalamalarının ortalaması)."""
+        kategoriler = self.get_all_kategoriler()
+        ortalamalar = []
+        
+        for kategori in kategoriler:
+            avg = self.get_ogrenci_kategori_ortalama(ogrenci_id, kategori['id'])
+            if avg is not None:
+                ortalamalar.append(avg)
+        
+        if ortalamalar:
+            return sum(ortalamalar) / len(ortalamalar)
+        return None
+    
+    def get_sinif_kategori_ortalama(self, sinif_id, kategori_id):
+        """Sınıfın bir kategorideki ortalamasını hesaplar. sinif_id None ise tüm okulu hesaplar."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        if sinif_id:
+            cursor.execute('''
+                SELECT AVG(n.puan) as ortalama
+                FROM not_ n
+                JOIN not_basligi nb ON n.baslik_id = nb.id
+                JOIN ogrenci o ON n.ogrenci_id = o.id
+                WHERE o.sinif_id = ? AND nb.kategori_id = ?
+            ''', (sinif_id, kategori_id))
+        else:
+             cursor.execute('''
+                SELECT AVG(n.puan) as ortalama
+                FROM not_ n
+                JOIN not_basligi nb ON n.baslik_id = nb.id
+                WHERE nb.kategori_id = ?
+            ''', (kategori_id,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        return row['ortalama'] if row and row['ortalama'] else None
+    
+    def get_sinif_genel_ortalama(self, sinif_id):
+        """Sınıfın genel ortalamasını hesaplar."""
+        kategoriler = self.get_all_kategoriler()
+        ortalamalar = []
+        
+        for kategori in kategoriler:
+            avg = self.get_sinif_kategori_ortalama(sinif_id, kategori['id'])
+            if avg is not None:
+                ortalamalar.append(avg)
+        
+        if ortalamalar:
+            return sum(ortalamalar) / len(ortalamalar)
+        return None
+    
+    def get_ogrenci_tum_notlar(self, ogrenci_id):
+        """Öğrencinin tüm notlarını kategorilere göre gruplandırılmış döndürür."""
+        kategoriler = self.get_all_kategoriler()
+        result = {}
+        
+        for kategori in kategoriler:
+            result[kategori['ad']] = {
+                'kategori_id': kategori['id'],
+                'notlar': [],
+                'ortalama': self.get_ogrenci_kategori_ortalama(ogrenci_id, kategori['id'])
             }
             
-            category_averages = []
-            for cat in categories:
-                avg = self.get_student_category_average(student['id'], cat['id'])
-                eval_data['kategoriler'][cat['isim']] = avg
-                if avg > 0:
-                    category_averages.append(avg)
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT n.puan, nb.baslik, nb.tarih
+                FROM not_ n
+                JOIN not_basligi nb ON n.baslik_id = nb.id
+                WHERE n.ogrenci_id = ? AND nb.kategori_id = ?
+                ORDER BY nb.tarih
+            ''', (ogrenci_id, kategori['id']))
             
-            if category_averages:
-                eval_data['genel_ortalama'] = round(sum(category_averages) / len(category_averages), 2)
-            
-            result.append(eval_data)
+            result[kategori['ad']]['notlar'] = [dict(row) for row in cursor.fetchall()]
+            conn.close()
         
         return result
     
-    def get_report_data_by_class(self, sinif: str = None) -> Dict[str, List[dict]]:
-        """Sınıf bazlı rapor verilerini getir"""
-        if sinif:
-            classes = [sinif]
-        else:
-            classes = self.get_all_classes()
+    def get_sinif_not_dagilimi(self, sinif_id):
+        """Sınıfın not dağılımını döndürür (grafik için)."""
+        ogrenciler = self.get_all_ogrenciler(sinif_id)
+        notlar = []
         
-        categories = self.get_all_categories()
-        report = {}
+        for ogrenci in ogrenciler:
+            avg = self.get_ogrenci_genel_ortalama(ogrenci['id'])
+            if avg is not None:
+                notlar.append(avg)
         
-        for current_class in classes:
-            students = self.get_students_by_class(current_class)
-            class_data = []
-            
-            for student in students:
-                student_data = {
-                    'ad': student['ad'],
-                    'soyad': student['soyad'],
-                    'numara': student['numara'],
-                    'kategoriler': {}
-                }
-                
-                for cat in categories:
-                    tasks = self.get_student_tasks_by_category(student['id'], cat['id'])
-                    avg = self.get_student_category_average(student['id'], cat['id'])
-                    student_data['kategoriler'][cat['isim']] = {
-                        'gorevler': tasks,
-                        'ortalama': avg
-                    }
-                
-                student_data['genel_ortalama'] = self.get_student_overall_average(student['id'])
-                class_data.append(student_data)
-            
-            report[current_class] = class_data
-        
-        return report
+        return notlar
     
-    def close(self):
-        """Veritabanı bağlantısını kapat"""
-        if self.conn:
-            self.conn.close()
-
-
-# Singleton instance
-_db_instance = None
-
-def get_database() -> DatabaseManager:
-    """Veritabanı instance'ını getir (singleton)"""
-    global _db_instance
-    if _db_instance is None:
-        _db_instance = DatabaseManager()
-    return _db_instance
+    # ==================== UNDO İŞLEMLERİ ====================
+    
+    def _add_to_undo(self, islem_tipi, tablo_adi, kayit_id, eski_veri, yeni_veri):
+        """İşlemi undo stack'e ekler."""
+        self.undo_stack.append({
+            'islem_tipi': islem_tipi,
+            'tablo_adi': tablo_adi,
+            'kayit_id': kayit_id,
+            'eski_veri': eski_veri,
+            'yeni_veri': yeni_veri
+        })
+        
+        # Stack boyutunu sınırla
+        if len(self.undo_stack) > self.max_undo:
+            self.undo_stack.pop(0)
+    
+    def undo(self):
+        """Son işlemi geri alır."""
+        if not self.undo_stack:
+            return False
+        
+        islem = self.undo_stack.pop()
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            if islem['islem_tipi'] == 'INSERT':
+                # Eklenen kaydı sil
+                cursor.execute(
+                    f"DELETE FROM {islem['tablo_adi']} WHERE id = ?",
+                    (islem['kayit_id'],)
+                )
+            
+            elif islem['islem_tipi'] == 'UPDATE':
+                # Eski veriyi geri yükle
+                eski = islem['eski_veri']
+                columns = ', '.join([f"{k} = ?" for k in eski.keys() if k != 'id'])
+                values = [v for k, v in eski.items() if k != 'id']
+                values.append(islem['kayit_id'])
+                cursor.execute(
+                    f"UPDATE {islem['tablo_adi']} SET {columns} WHERE id = ?",
+                    values
+                )
+            
+            elif islem['islem_tipi'] == 'DELETE':
+                # Silinen kaydı geri ekle
+                eski = islem['eski_veri']
+                columns = ', '.join(eski.keys())
+                placeholders = ', '.join(['?' for _ in eski])
+                cursor.execute(
+                    f"INSERT INTO {islem['tablo_adi']} ({columns}) VALUES ({placeholders})",
+                    list(eski.values())
+                )
+            
+            conn.commit()
+            conn.close()
+            return True
+        
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            raise e
+    
+    def can_undo(self):
+        """Geri alınabilecek işlem var mı kontrol eder."""
+        return len(self.undo_stack) > 0
+    
+    def get_undo_description(self):
+        """Son geri alınabilecek işlemin açıklamasını döndürür."""
+        if not self.undo_stack:
+            return None
+        
+        islem = self.undo_stack[-1]
+        tablo_map = {
+            'sinif': 'Sınıf',
+            'ogrenci': 'Öğrenci',
+            'kategori': 'Kategori',
+            'not_basligi': 'Not Başlığı',
+            'not_': 'Not'
+        }
+        islem_map = {
+            'INSERT': 'ekleme',
+            'UPDATE': 'güncelleme',
+            'DELETE': 'silme'
+        }
+        
+        tablo = tablo_map.get(islem['tablo_adi'], islem['tablo_adi'])
+        tip = islem_map.get(islem['islem_tipi'], islem['islem_tipi'])
+        
+        return f"{tablo} {tip} işlemini geri al"

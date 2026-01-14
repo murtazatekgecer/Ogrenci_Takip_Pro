@@ -1,189 +1,189 @@
 """
 Öğrenci Takip Pro - Ana Uygulama
-Cross-platform öğrenci takip ve değerlendirme uygulaması
+Öğretmenler için kapsamlı öğrenci takip ve not yönetim sistemi.
 """
 import flet as ft
-from views.students_view import StudentsView
-from views.categories_view import CategoriesView
-from views.tasks_view import TasksView
-from views.evaluation_view import EvaluationView
+from database import init_db, DatabaseManager
+from views.student_view import StudentView
+from views.grades_view import GradesView
 from views.reports_view import ReportsView
+from views.settings_view import SettingsView
 
 
 def main(page: ft.Page):
-    """Ana uygulama fonksiyonu"""
+    """Ana uygulama fonksiyonu."""
     
     # Sayfa ayarları
     page.title = "Öğrenci Takip Pro"
-    page.window.width = 1200
-    page.window.height = 800
-    page.window.min_width = 800
-    page.window.min_height = 600
+    page.window_width = 1200
+    page.window_height = 800
+    page.window_min_width = 900
+    page.window_min_height = 600
+    page.padding = 0
+    page.spacing = 0
+    # Pencere ikonu (assets klsöründen otomatik alır)
+    page.window_icon = "icon.png"
     
-    # Uygulama ikonu (Windows için)
-    page.window.icon = "assets/icon.png"
-    
-    # Varsayılan tema (karanlık mod)
-    page.theme_mode = ft.ThemeMode.DARK
-    
-    # Tema renkleri
+    # Tema ayarları
     page.theme = ft.Theme(
         color_scheme_seed=ft.colors.BLUE,
     )
-    page.dark_theme = ft.Theme(
-        color_scheme_seed=ft.colors.BLUE,
+    page.theme_mode = ft.ThemeMode.LIGHT
+    
+    # Veritabanını başlat
+    init_db()
+    
+    # Veritabanı yöneticisi
+    db = DatabaseManager()
+    
+    # State
+    state = {"dark_mode": False, "current_nav": 0}
+    
+    # Görünümler - her biri visible=False ile başlar
+    student_view = StudentView(db, on_update=lambda: refresh_views())
+    grades_view = GradesView(db, on_update=lambda: refresh_views())
+    reports_view = ReportsView(db)
+    settings_view = SettingsView(
+        db, 
+        on_theme_change=lambda dm: toggle_theme(dm),
+        on_data_change=lambda: refresh_views()
     )
     
-    # Görünümler
-    students_view = StudentsView(page)
-    categories_view = CategoriesView(page)
-    tasks_view = TasksView(page)
-    evaluation_view = EvaluationView(page)
-    reports_view = ReportsView(page)
+    # Konteynerler - visibility ile kontrol
+    view_containers = [
+        ft.Container(content=student_view, visible=True, expand=True, padding=20),
+        ft.Container(content=grades_view, visible=False, expand=True, padding=20),
+        ft.Container(content=reports_view, visible=False, expand=True, padding=20),
+        ft.Container(content=settings_view, visible=False, expand=True, padding=20),
+    ]
     
-    # Görünüm listesi
-    views = [students_view, categories_view, tasks_view, evaluation_view, reports_view]
+    def refresh_views():
+        undo_btn.disabled = not db.can_undo()
+        for i, container in enumerate(view_containers):
+            if container.visible and hasattr(container.content, 'refresh'):
+                container.content.refresh()
+        page.update()
     
-    # Başlangıçta sadece ilk görünüm visible
-    for i, view in enumerate(views):
-        view.visible = (i == 0)
+    def toggle_theme(dm=None):
+        if dm is not None:
+            state["dark_mode"] = dm
+        else:
+            state["dark_mode"] = not state["dark_mode"]
+        page.theme_mode = ft.ThemeMode.DARK if state["dark_mode"] else ft.ThemeMode.LIGHT
+        theme_btn.icon = ft.icons.LIGHT_MODE if state["dark_mode"] else ft.icons.DARK_MODE
+        page.update()
     
-    # İçerik alanı - tüm görünümler stack içinde
-    content_area = ft.Column(
-        controls=views,
+    def on_nav_click(e, index):
+        """Navigasyon butonuna tıklandığında."""
+        state["current_nav"] = index
+        
+        # Tüm view'ları gizle, sadece seçileni göster
+        for i, container in enumerate(view_containers):
+            container.visible = (i == index)
+        
+        # Görünümü yenile
+        if hasattr(view_containers[index].content, 'refresh'):
+            view_containers[index].content.refresh()
+        
+        # Buton renklerini güncelle
+        update_nav_colors(index)
+        
+        page.update()
+    
+    def update_nav_colors(active_index):
+        """Navigasyon butonlarının renklerini günceller."""
+        for i, btn in enumerate(nav_icon_buttons):
+            btn.icon_color = ft.colors.PRIMARY if i == active_index else ft.colors.GREY_600
+    
+    def on_undo(e):
+        if db.can_undo():
+            desc = db.get_undo_description()
+            db.undo()
+            page.snack_bar = ft.SnackBar(
+                content=ft.Text(f"↩ {desc}"),
+                bgcolor=ft.colors.BLUE_400
+            )
+            page.snack_bar.open = True
+            refresh_views()
+    
+    # Navigasyon icon butonları (ayrı liste)
+    nav_icon_buttons = []
+    nav_icons = [ft.icons.PEOPLE, ft.icons.ASSIGNMENT, ft.icons.ANALYTICS, ft.icons.SETTINGS]
+    nav_labels = ["Öğrenciler", "Notlar", "Raporlar", "Ayarlar"]
+    
+    for i, (icon, label) in enumerate(zip(nav_icons, nav_labels)):
+        icon_btn = ft.IconButton(
+            icon=icon,
+            tooltip=label,
+            icon_size=28,
+            icon_color=ft.colors.PRIMARY if i == 0 else ft.colors.GREY_600,
+            on_click=lambda e, idx=i: on_nav_click(e, idx),
+        )
+        nav_icon_buttons.append(icon_btn)
+    
+    # Navigasyon buton konteynerleri
+    nav_buttons = [ft.Container(content=btn, padding=5) for btn in nav_icon_buttons]
+    
+    # Tema butonu
+    theme_btn = ft.IconButton(
+        icon=ft.icons.DARK_MODE,
+        tooltip="Temayı Değiştir",
+        on_click=lambda e: toggle_theme(),
+    )
+    
+    # Undo butonu
+    undo_btn = ft.IconButton(
+        icon=ft.icons.UNDO,
+        tooltip="Geri Al (Ctrl+Z)",
+        on_click=on_undo,
+        disabled=not db.can_undo(),
+    )
+    
+    # Sol navigasyon paneli
+    nav_column = ft.Column([
+        ft.Container(
+            content=ft.Column([
+                ft.Icon(ft.icons.SCHOOL, size=32, color=ft.colors.PRIMARY),
+                ft.Text("ÖTP", size=11, weight=ft.FontWeight.BOLD, color=ft.colors.PRIMARY),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+            padding=10,
+        ),
+        ft.Divider(height=1),
+        *nav_buttons,
+        ft.Container(expand=True),
+        undo_btn,
+        theme_btn,
+    ], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    
+    nav_panel = ft.Container(
+        content=nav_column,
+        width=80,
+        bgcolor=ft.colors.SURFACE_VARIANT,
+        padding=ft.padding.symmetric(vertical=10),
+    )
+    
+    # İçerik alanı - Stack kullanarak visibility ile kontrol
+    content_stack = ft.Stack(
+        controls=view_containers,
         expand=True,
     )
     
-    def change_view(index):
-        """Görünümü değiştir"""
-        # Tüm görünümleri gizle, sadece seçileni göster
-        for i, view in enumerate(views):
-            view.visible = (i == index)
-        
-        # Verileri yenile
-        selected_view = views[index]
-        if hasattr(selected_view, 'refresh'):
-            selected_view.refresh()
-        elif hasattr(selected_view, 'load_students'):
-            selected_view.load_students()
-        elif hasattr(selected_view, 'load_categories'):
-            selected_view.load_categories()
-        elif hasattr(selected_view, 'load_data'):
-            selected_view.load_data()
-        
-        # Navigation rail ve bar sync
-        rail.selected_index = index
-        bottom_nav.selected_index = index
-        
-        page.update()
-    
-    def toggle_theme(e):
-        """Tema değiştir (Gündüz/Gece)"""
-        if page.theme_mode == ft.ThemeMode.DARK:
-            page.theme_mode = ft.ThemeMode.LIGHT
-            theme_button.icon = ft.icons.DARK_MODE
-            theme_button.tooltip = "Gece Moduna Geç"
-        else:
-            page.theme_mode = ft.ThemeMode.DARK
-            theme_button.icon = ft.icons.LIGHT_MODE
-            theme_button.tooltip = "Gündüz Moduna Geç"
-        page.update()
-    
-    # Tema değiştirme butonu
-    theme_button = ft.IconButton(
-        icon=ft.icons.LIGHT_MODE,
-        tooltip="Gündüz Moduna Geç",
-        on_click=toggle_theme,
-    )
-    
-    # Navigation Rail
-    rail = ft.NavigationRail(
-        selected_index=0,
-        label_type=ft.NavigationRailLabelType.ALL,
-        min_width=100,
-        min_extended_width=200,
-        leading=ft.Column([
-            ft.Container(
-                content=ft.Column([
-                    ft.Icon(ft.icons.SCHOOL, size=40),
-                    ft.Text("ÖTP", size=16, weight=ft.FontWeight.BOLD),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
-                padding=10,
-            ),
-            theme_button,
-        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-        destinations=[
-            ft.NavigationRailDestination(
-                icon=ft.icons.PEOPLE_OUTLINE,
-                selected_icon=ft.icons.PEOPLE,
-                label="Öğrenciler",
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.icons.CATEGORY_OUTLINED,
-                selected_icon=ft.icons.CATEGORY,
-                label="Kategoriler",
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.icons.ASSIGNMENT_OUTLINED,
-                selected_icon=ft.icons.ASSIGNMENT,
-                label="Görevler",
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.icons.ANALYTICS_OUTLINED,
-                selected_icon=ft.icons.ANALYTICS,
-                label="Değerlendirme",
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.icons.DOWNLOAD_OUTLINED,
-                selected_icon=ft.icons.DOWNLOAD,
-                label="Raporlar",
-            ),
-        ],
-        on_change=lambda e: change_view(e.control.selected_index),
-    )
-    
-    # Mobil için BottomNavigationBar
-    bottom_nav = ft.NavigationBar(
-        selected_index=0,
-        destinations=[
-            ft.NavigationBarDestination(icon=ft.icons.PEOPLE, label="Öğrenciler"),
-            ft.NavigationBarDestination(icon=ft.icons.CATEGORY, label="Kategoriler"),
-            ft.NavigationBarDestination(icon=ft.icons.ASSIGNMENT, label="Görevler"),
-            ft.NavigationBarDestination(icon=ft.icons.ANALYTICS, label="Değerlendirme"),
-            ft.NavigationBarDestination(icon=ft.icons.DOWNLOAD, label="Raporlar"),
-        ],
-        on_change=lambda e: change_view(e.control.selected_index),
-    )
-    
-    # Responsive layout
-    def on_resize(e):
-        """Pencere boyutu değiştiğinde layout güncelle"""
-        if page.width and page.width < 768:
-            # Mobil görünüm
-            rail.visible = False
-            bottom_nav.visible = True
-        else:
-            # Masaüstü görünüm
-            rail.visible = True
-            bottom_nav.visible = False
-        page.update()
-    
-    page.on_resized = on_resize
-    
     # Ana layout
-    page.add(
-        ft.Row([
-            rail,
-            ft.VerticalDivider(width=1),
-            content_area,
-        ], expand=True),
-    )
+    main_layout = ft.Row([
+        nav_panel,
+        ft.VerticalDivider(width=1),
+        content_stack,
+    ], expand=True, spacing=0)
     
-    page.navigation_bar = bottom_nav
+    page.add(main_layout)
     
-    # İlk yükleme
-    on_resize(None)
+    # Klavye kısayolları
+    def on_keyboard(e: ft.KeyboardEvent):
+        if e.ctrl and e.key == "Z":
+            on_undo(None)
+    
+    page.on_keyboard_event = on_keyboard
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.app(target=main, assets_dir="assets")
