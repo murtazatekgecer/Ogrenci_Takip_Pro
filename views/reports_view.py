@@ -114,9 +114,7 @@ class ReportsView(ft.Container):
             self.table_container,
         ], scroll=ft.ScrollMode.AUTO, expand=True)
         self.expand = True
-    
-    def did_mount(self):
-        self.refresh()
+        self.refresh()  # did_mount yerine doğrudan çağır
     
     def refresh(self):
         """Raporları yeniler."""

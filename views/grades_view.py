@@ -106,9 +106,7 @@ class GradesView(ft.Container):
             ], expand=True, spacing=15),
         ], expand=True)
         self.expand = True
-    
-    def did_mount(self):
-        self.refresh()
+        self.refresh()  # did_mount yerine doğrudan çağır
     
     def refresh(self):
         """Görünümü yeniler."""

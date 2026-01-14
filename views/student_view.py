@@ -134,10 +134,7 @@ class StudentView(ft.Container):
             ], expand=True, vertical_alignment=ft.CrossAxisAlignment.START),
         ], expand=True)
         self.expand = True
-    
-    def did_mount(self):
-        """Bileşen yüklendiğinde çalışır."""
-        self.refresh()
+        self.refresh()  # did_mount yerine doğrudan çağır
     
     def refresh(self):
         """Listeyi yeniler."""
