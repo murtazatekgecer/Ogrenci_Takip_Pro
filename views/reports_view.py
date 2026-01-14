@@ -5,7 +5,7 @@ import flet as ft
 from components.charts import ChartBuilder
 
 
-class ReportsView(ft.UserControl):
+class ReportsView(ft.Container):
     """Raporlar ve grafikler."""
     
     def __init__(self, db_manager):
@@ -15,8 +15,9 @@ class ReportsView(ft.UserControl):
         self.chart_builder = ChartBuilder(dark_mode=False)
         self.sort_column = "name"
         self.sort_descending = False
+        self._build_content()
     
-    def build(self):
+    def _build_content(self):
         # Sınıf seçici options
         siniflar = self.db.get_all_siniflar()
         sinif_options = [ft.dropdown.Option(key="all", text="📚 Tüm Sınıflar")]
@@ -80,7 +81,7 @@ class ReportsView(ft.UserControl):
             border_radius=10,
         )
         
-        return ft.Column([
+        self.content = ft.Column([
             # Üst araç çubuğu
             ft.Row([
                 self.sinif_dropdown,
@@ -112,6 +113,7 @@ class ReportsView(ft.UserControl):
             ft.Text("Detaylı Rapor", size=16, weight=ft.FontWeight.BOLD),
             self.table_container,
         ], scroll=ft.ScrollMode.AUTO, expand=True)
+        self.expand = True
     
     def did_mount(self):
         self.refresh()

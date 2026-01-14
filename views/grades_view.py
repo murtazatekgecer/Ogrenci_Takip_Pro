@@ -5,7 +5,7 @@ import flet as ft
 from components.grade_table import GradeTable
 
 
-class GradesView(ft.UserControl):
+class GradesView(ft.Container):
     """Not girişi ve kategori yönetimi."""
     
     def __init__(self, db_manager, on_update=None):
@@ -14,8 +14,9 @@ class GradesView(ft.UserControl):
         self.on_update = on_update
         self.selected_sinif = None
         self.selected_kategori = None
+        self._build_content()
     
-    def build(self):
+    def _build_content(self):
         # Sınıf seçici - "Tüm Sınıflar" seçeneği ile
         siniflar = self.db.get_all_siniflar()
         sinif_options = [ft.dropdown.Option(key="all", text="📚 Tüm Sınıflar")]
@@ -44,7 +45,7 @@ class GradesView(ft.UserControl):
             expand=True,
         )
         
-        return ft.Column([
+        self.content = ft.Column([
             # Üst araç çubuğu
             ft.Row([
                 self.sinif_dropdown,
@@ -104,6 +105,7 @@ class GradesView(ft.UserControl):
                 ),
             ], expand=True, spacing=15),
         ], expand=True)
+        self.expand = True
     
     def did_mount(self):
         self.refresh()

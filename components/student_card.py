@@ -6,7 +6,7 @@ import json
 from utils.helpers import get_grade_color, get_grade_text, get_badge_info, get_all_badges
 
 
-class StudentCard(ft.UserControl):
+class StudentCard(ft.Container):
     """Öğrenci detay kartı."""
     
     def __init__(self, db_manager, ogrenci_id, on_close=None, on_update=None):
@@ -17,11 +17,13 @@ class StudentCard(ft.UserControl):
         self.on_update = on_update
         self.ogrenci = None
         self.editing_not = None
+        self._build_content()
     
-    def build(self):
+    def _build_content(self):
         self.ogrenci = self.db.get_ogrenci_by_id(self.ogrenci_id)
         if not self.ogrenci:
-            return ft.Text("Öğrenci bulunamadı!")
+            self.content = ft.Text("Öğrenci bulunamadı!")
+            return
         
         # Rozetleri parse et
         try:
@@ -115,7 +117,7 @@ class StudentCard(ft.UserControl):
             elevation=8,
         )
         
-        return card
+        self.content = card
     
     def _build_grades_section(self):
         """Notlar bölümünü oluşturur."""

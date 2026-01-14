@@ -6,7 +6,7 @@ import flet as ft
 from utils.helpers import validate_grade, get_grade_color
 
 
-class GradeTable(ft.UserControl):
+class GradeTable(ft.Container):
     """Toplu not girişi tablosu."""
     
     def __init__(self, db_manager, sinif_id, baslik_id=None, on_save=None, 
@@ -24,8 +24,9 @@ class GradeTable(ft.UserControl):
         self.has_changes = False
         self.sort_column = "number" # number, class, name
         self.sort_descending = False
+        self._build_content()
     
-    def build(self):
+    def _build_content(self):
         # Tüm sınıflar modu mu?
         is_all_mode = self.sinif_id == "all" and self.baslik_ids
         
@@ -214,7 +215,7 @@ class GradeTable(ft.UserControl):
             padding=5,
         )
         
-        return ft.Column([
+        self.content = ft.Column([
             # Başlık
             ft.Container(
                 content=ft.Row([
@@ -254,6 +255,7 @@ class GradeTable(ft.UserControl):
                        weight=ft.FontWeight.BOLD, color=ft.colors.GREY_700),
             ]),
         ], spacing=0, expand=True)
+        self.expand = True
     
     def _on_grade_change(self, e, ogrenci_id):
         """Not değiştiğinde çağrılır."""

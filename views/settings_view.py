@@ -6,7 +6,7 @@ from utils.export import ExportManager
 from utils.backup import BackupManager
 
 
-class SettingsView(ft.UserControl):
+class SettingsView(ft.Container):
     """Ayarlar ve veri yönetimi."""
     
     def __init__(self, db_manager, on_theme_change=None, on_data_change=None):
@@ -17,8 +17,9 @@ class SettingsView(ft.UserControl):
         self.export_manager = ExportManager(db_manager)
         self.backup_manager = BackupManager()
         self.dark_mode = False
+        self._build_content()
     
-    def build(self):
+    def _build_content(self):
         # FilePicker'lar
         self.save_file_picker = ft.FilePicker(on_result=self._on_save_file)
         self.open_file_picker = ft.FilePicker(on_result=self._on_open_file)
@@ -42,7 +43,7 @@ class SettingsView(ft.UserControl):
             options=sinif_options,
         )
         
-        return ft.Column([            
+        self.content = ft.Column([            
             # Dışa aktarma
             self._create_section(
                 "Dışa Aktarma",

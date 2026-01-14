@@ -7,7 +7,7 @@ import math
 import asyncio
 
 
-class WheelPicker(ft.UserControl):
+class WheelPicker(ft.Container):
     """Rastgele öğrenci seçici."""
     
     def __init__(self, ogrenciler, on_select=None):
@@ -17,17 +17,17 @@ class WheelPicker(ft.UserControl):
         self.is_spinning = False
         self.selected_student = None
         self.animation_angle = 0
+        self._build_content()
     
-    def build(self):
+    def _build_content(self):
         if not self.ogrenciler:
-            return ft.Container(
-                content=ft.Column([
-                    ft.Icon(ft.icons.PEOPLE_OUTLINE, size=60, color=ft.colors.GREY_400),
-                    ft.Text("Öğrenci listesi boş!", size=16, color=ft.colors.GREY_500),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                alignment=ft.alignment.center,
-                height=300,
-            )
+            self.content = ft.Column([
+                ft.Icon(ft.icons.PEOPLE_OUTLINE, size=60, color=ft.colors.GREY_400),
+                ft.Text("Öğrenci listesi boş!", size=16, color=ft.colors.GREY_500),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            self.alignment = ft.alignment.center
+            self.height = 300
+            return
         
         # Seçilen öğrenci gösterimi
         self.result_text = ft.Text(
@@ -87,39 +87,37 @@ class WheelPicker(ft.UserControl):
             margin=ft.margin.only(left=-15),
         )
         
-        return ft.Container(
-            content=ft.Column([
-                ft.Text("🎲 Rastgele Öğrenci Seçici", 
-                       size=22, weight=ft.FontWeight.BOLD, 
-                       text_align=ft.TextAlign.CENTER),
-                
-                ft.Container(height=20),
-                
-                ft.Stack([
-                    self.wheel_container,
-                    arrow,
-                ], alignment=ft.alignment.center),
-                
-                ft.Container(height=20),
-                
-                self.result_container,
-                
-                ft.Container(height=20),
-                
-                self.spin_button,
-                
-                ft.Container(height=10),
-                
-                ft.Text(
-                    f"Toplam {len(self.ogrenciler)} öğrenci",
-                    size=12, color=ft.colors.GREY_600,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-            ], 
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=5),
-            padding=20,
-        )
+        self.content = ft.Column([
+            ft.Text("🎲 Rastgele Öğrenci Seçici", 
+                   size=22, weight=ft.FontWeight.BOLD, 
+                   text_align=ft.TextAlign.CENTER),
+            
+            ft.Container(height=20),
+            
+            ft.Stack([
+                self.wheel_container,
+                arrow,
+            ], alignment=ft.alignment.center),
+            
+            ft.Container(height=20),
+            
+            self.result_container,
+            
+            ft.Container(height=20),
+            
+            self.spin_button,
+            
+            ft.Container(height=10),
+            
+            ft.Text(
+                f"Toplam {len(self.ogrenciler)} öğrenci",
+                size=12, color=ft.colors.GREY_600,
+                text_align=ft.TextAlign.CENTER,
+            ),
+        ], 
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=5)
+        self.padding = 20
     
     def _create_name_items(self, highlight_index=None):
         """İsim öğelerini oluşturur."""

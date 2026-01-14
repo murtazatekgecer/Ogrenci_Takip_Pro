@@ -7,7 +7,7 @@ from components.wheel_picker import WheelPicker
 from utils.helpers import filter_students_by_name
 
 
-class StudentView(ft.UserControl):
+class StudentView(ft.Container):
     """Öğrenci listesi ve yönetimi."""
     
     def __init__(self, db_manager, on_update=None):
@@ -19,8 +19,9 @@ class StudentView(ft.UserControl):
         self.filter_mode = "all"  # all, below_50, above_70
         self.sort_column = "number"  # number, name, surname, class, average
         self.sort_descending = False
+        self._build_content()
     
-    def build(self):
+    def _build_content(self):
         # Sınıf seçici - "Tüm Sınıflar" seçeneği ile
         siniflar = self.db.get_all_siniflar()
         sinif_options = [ft.dropdown.Option(key="all", text="📚 Tüm Sınıflar")]
@@ -98,7 +99,7 @@ class StudentView(ft.UserControl):
         # Rastgele seçici container
         self.wheel_container = ft.Container(visible=False, padding=ft.padding.only(left=10))
         
-        return ft.Column([
+        self.content = ft.Column([
             # Üst araç çubuğu - Satır 1
             ft.Row([
                 self.sinif_dropdown,
@@ -139,6 +140,7 @@ class StudentView(ft.UserControl):
                 self.wheel_container,
             ], expand=True, vertical_alignment=ft.CrossAxisAlignment.START),
         ], expand=True)
+        self.expand = True
     
     def did_mount(self):
         """Bileşen yüklendiğinde çalışır."""

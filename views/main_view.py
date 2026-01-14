@@ -8,7 +8,7 @@ from .reports_view import ReportsView
 from .settings_view import SettingsView
 
 
-class MainView(ft.UserControl):
+class MainView(ft.Container):
     """Ana uygulama görünümü."""
     
     def __init__(self, page: ft.Page, db_manager):
@@ -23,8 +23,9 @@ class MainView(ft.UserControl):
         self.grades_view = None
         self.reports_view = None
         self.settings_view = None
+        self._build_content()
     
-    def build(self):
+    def _build_content(self):
         self._init_views()
         
         # Tema değiştirme butonu
@@ -83,7 +84,8 @@ class MainView(ft.UserControl):
             self.content_area,
         ], expand=True, spacing=0)
         
-        return main_row
+        self.content = main_row
+        self.expand = True
     
     def _create_nav_button(self, index, icon, tooltip):
         """Navigasyon butonu oluşturur."""
