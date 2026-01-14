@@ -37,11 +37,12 @@ jobs:
         run: pip install flet
       - name: Build APK
         run: |
+          cd android
           flet build apk --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Ogrenci-Takip-Pro-APK
-          path: build/apk/*.apk
+          path: android/build/apk/*.apk
           if-no-files-found: error
